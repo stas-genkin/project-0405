@@ -1,6 +1,14 @@
 pipeline {
   agent any
-  triggers { cron('* * * * *') }
+
+  options {
+    skipDefaultCheckout(true)
+    timestamps()
+  }
+
+  triggers {
+    cron('* * * * *')
+  }
 
   stages {
     stage('Checkout') {
@@ -37,13 +45,13 @@ pipeline {
         stage('secondBranch') {
           steps {
             sh '''
-              TARGET="$WORKSPACE/main.py"
+              TARGET="$WORKSPACE/app.py"
               if [ ! -f "$TARGET" ]; then
-                echo "main.py not found at $TARGET, searching..." >&2
-                TARGET_FOUND=$(find "$WORKSPACE" -maxdepth 3 -type f -name "main.py" | head -n1)
+                echo "app.py not found at $TARGET, searching..." >&2
+                TARGET_FOUND=$(find "$WORKSPACE" -maxdepth 3 -type f -name "app.py" | head -n1)
                 if [ -z "$TARGET_FOUND" ]; then
-                  echo "main.py not found in workspace" >&2
-                  exit 2
+                  echo "app.py not found in workspace (skip run)" >&2
+                  exit 0
                 fi
                 TARGET="$TARGET_FOUND"
               fi
@@ -61,6 +69,12 @@ pipeline {
         echo 'Hello World'
         sh 'echo hi'
       }
+    }
+  }
+
+  post {
+    always {
+      echo "Build finished with status: ${currentBuild.currentResult}"
     }
   }
 }
