@@ -21,6 +21,28 @@ pipeline {
       }
     }
 
+    stage('Setup Python venv & install deps') {
+      steps {
+        sh '''
+          set -e
+          PY=python3
+          $PY -V || true
+          # create venv inside workspace (handles spaces and @2)
+          $PY -m venv "$WORKSPACE/.venv"
+          . "$WORKSPACE/.venv/bin/activate"
+          pip install --upgrade pip
+          if [ -f "$WORKSPACE/requirements.txt" ]; then
+            pip install -r "$WORKSPACE/requirements.txt"
+          else
+            # minimal deps (fallback) – comment out if not needed
+            pip install flask
+          fi
+          which python
+          pip list
+        '''
+      }
+    }
+
     stage('Hello') {
       steps {
         echo 'Hello World'
@@ -45,6 +67,7 @@ pipeline {
         stage('secondBranch') {
           steps {
             sh '''
+              set -e
               TARGET="$WORKSPACE/app.py"
               if [ ! -f "$TARGET" ]; then
                 echo "app.py not found at $TARGET, searching..." >&2
@@ -56,7 +79,8 @@ pipeline {
                 TARGET="$TARGET_FOUND"
               fi
               echo "Using: $TARGET"
-              python3 "$TARGET"
+              . "$WORKSPACE/.venv/bin/activate"
+              python "$TARGET"
             '''
             echo 'Hello from secondBranch'
           }
