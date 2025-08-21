@@ -6,9 +6,7 @@ pipeline {
     timestamps()
   }
 
-  triggers {
-    cron('* * * * *')
-  }
+  triggers { cron('* * * * *') }
 
   stages {
     stage('Checkout') {
@@ -24,20 +22,31 @@ pipeline {
     stage('Setup Python venv & install deps') {
       steps {
         sh '''
-          set -e
+          set -euxo pipefail
+          export PATH="$HOME/.local/bin:$PATH"
           PY=python3
-          $PY -V || true
-          # create venv inside workspace (handles spaces and @2)
-          $PY -m venv "$WORKSPACE/.venv"
-          . "$WORKSPACE/.venv/bin/activate"
+          VENV_DIR="$WORKSPACE/.venv"
+
+          # try stdlib venv; if it fails (ensurepip missing), fall back to virtualenv
+          if $PY -m venv "$VENV_DIR" 2>/dev/null; then
+            echo "Created venv with stdlib"
+          else
+            echo "stdlib venv failed; falling back to virtualenv"
+            $PY -m pip install --user --upgrade pip virtualenv
+            virtualenv "$VENV_DIR"
+          fi
+
+          . "$VENV_DIR/bin/activate"
+          python -V
+          pip --version
           pip install --upgrade pip
+
           if [ -f "$WORKSPACE/requirements.txt" ]; then
             pip install -r "$WORKSPACE/requirements.txt"
           else
-            # minimal deps (fallback) – comment out if not needed
-            pip install flask
+            pip install flask || true
           fi
-          which python
+
           pip list
         '''
       }
@@ -60,26 +69,26 @@ pipeline {
     stage('build docker image') {
       parallel {
         stage('firstBranch') {
-          steps {
-            sh 'echo firstBranch running'
-          }
+          steps { sh 'echo firstBranch running' }
         }
         stage('secondBranch') {
           steps {
             sh '''
-              set -e
+              set -euxo pipefail
+              VENV_DIR="$WORKSPACE/.venv"
+              . "$VENV_DIR/bin/activate"
+
               TARGET="$WORKSPACE/app.py"
               if [ ! -f "$TARGET" ]; then
-                echo "app.py not found at $TARGET, searching..." >&2
-                TARGET_FOUND=$(find "$WORKSPACE" -maxdepth 3 -type f -name "app.py" | head -n1)
-                if [ -z "$TARGET_FOUND" ]; then
-                  echo "app.py not found in workspace (skip run)" >&2
-                  exit 0
-                fi
-                TARGET="$TARGET_FOUND"
+                TARGET=$(find "$WORKSPACE" -maxdepth 3 -type f -name "app.py" | head -n1 || true)
               fi
+
+              if [ -z "${TARGET:-}" ]; then
+                echo "app.py not found in workspace; skipping run" >&2
+                exit 0
+              fi
+
               echo "Using: $TARGET"
-              . "$WORKSPACE/.venv/bin/activate"
               python "$TARGET"
             '''
             echo 'Hello from secondBranch'
