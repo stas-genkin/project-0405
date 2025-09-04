@@ -1,51 +1,48 @@
 pipeline {
   agent any
 
+  environment {
+    DOCKERHUB_USER = 'stas696970'
+    DOCKERHUB_REPO = 'flask_app'
+    DOCKER_IMAGE = "${DOCKERHUB_USER}/${DOCKERHUB_REPO}:v1"
+  }
+
   stages {
-    stage('Hello') {
+    stage('Checkout') {
       steps {
-        echo 'Hello World'
-        sh 'echo hi'
+        git branch: 'main', url: 'https://github.com/stas-genkin/project-0405.git'
       }
     }
 
-    stage('Hello again') {
+    stage('Build Docker Image') {
       steps {
-        echo 'Hello World'
-        sh 'echo hi'
+        sh 'docker build -t $DOCKER_IMAGE .'
       }
     }
 
-    stage('build docker image') {
-      parallel {
-        stage('firstBranch') {
-          steps { sh 'echo firstBranch running' }
-        }
-        stage('secondBranch') {
-          steps {
-            echo 'Hello from secondBranch'
-            sh 'echo hi'
-          }
+    stage('Push to DockerHub') {
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+          sh 'echo $PASS | docker login -u $USER --password-stdin'
+          sh 'docker push $DOCKER_IMAGE'
         }
       }
     }
 
-    stage('push to hub') {
+    stage('Deploy with Helm') {
       steps {
-        echo 'Hello World'
-        sh 'echo hi'
+        sh 'helm upgrade --install myflaskapp ./mychart --set image.repository=$DOCKERHUB_USER/$DOCKERHUB_REPO --set image.tag=v1'
       }
     }
 
-    stage('Docker build & push') {
-      when {
-        expression { fileExists('Dockerfile') }
-      }
+    stage('Test Service') {
       steps {
-        sh 'echo "docker build & push goes here (optional)"'
+        sh '''
+          kubectl rollout status deployment/myflaskapp-mychart
+          kubectl get svc
+        '''
       }
     }
   }
 }
-
 
