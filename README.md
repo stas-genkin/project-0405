@@ -1,4 +1,5 @@
-# 🚀 Final DevOps Project – Phase 3
+# ⚙️ Final DevOps Project – Phase 3
+
 
 Welcome to my Phase 3 Final DevOps Project!  
 The goal was to build a **complete CI/CD pipeline** for a simple Flask application, deploying it all the way to Kubernetes using Jenkins, Docker, and Helm.  
