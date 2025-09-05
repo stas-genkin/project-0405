@@ -11,11 +11,12 @@ service:
 
 livenessProbe:
   httpGet:
-    path: /
+    path: /health/live
     port: 5000
+
 readinessProbe:
   httpGet:
-    path: /
+    path: /health/ready
     port: 5000
 
 autoscaling:
